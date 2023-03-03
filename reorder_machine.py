@@ -286,7 +286,7 @@ def find(interval="", pickup="", statuses=[], end_date="", date="", time_zone=0,
 
 claims = orders_list
 
-if st.button("Reorder", type="primary"):
+if st.button("Reorder", type="primary", use_container_width=True):
     sdd = "sdd"
     interval = {}
     created_claims = []
@@ -351,7 +351,7 @@ if st.button("Reorder", type="primary"):
     claims = set(created_claims)
 
     
-if st.button("Cancel"):
+if st.button("Cancel", use_container_width=True):
     methods = [
         {
             "method": "claims/cancel?claim_id={claim_id}",
