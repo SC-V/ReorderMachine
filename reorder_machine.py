@@ -285,99 +285,102 @@ def find(interval="", pickup="", statuses=[], end_date="", date="", time_zone=0,
 
 
 claims = orders_list
+col_reorder, col_cancel = st.columns(2)
 
-if st.button("Reorder", type="primary", use_container_width=True):
-    sdd = "sdd"
-    interval = {}
-    created_claims = []
-    for claim in claims:
-        if len(claim) == 32:
-            endpoint = f"claims/info?claim_id={claim}"
-            payload = {}
-        else:
-            endpoint = f"claims/search"
-            payload = {
-                "limit": 1,
-                "offset": 0,
-                "external_order_id": claim
-            }
-        claim_info = make_request(endpoint, payload)
-        if 'claims' in claim_info.keys():
-            if len(claim_info['claims']) > 0:
-                claim_info = claim_info['claims'][0]
-
-        if interval == {} and sdd and 'same_day_data' not in interval.keys():
-            # st.info(f"Getting information about starting point")
-            start_point = claim_info['route_points'][0]['address']['coordinates']
-
-            # st.info(f"Requesting Same-day nearest interval")
-            delivery_methods = make_request("delivery-methods", {"start_point": start_point})
-
-            if 'available_intervals' in delivery_methods['same_day_delivery'].keys() and len(
-                    delivery_methods['same_day_delivery']['available_intervals']) != 0:
-                interval = delivery_methods['same_day_delivery']['available_intervals'][0]
-                st.info(f"Interval: {interval}")
+with col_reorder:
+    if st.button("Reorder", type="primary", use_container_width=True):
+        sdd = "sdd"
+        interval = {}
+        created_claims = []
+        for claim in claims:
+            if len(claim) == 32:
+                endpoint = f"claims/info?claim_id={claim}"
+                payload = {}
             else:
-                st.error(f"No available intervals for this client")
+                endpoint = f"claims/search"
+                payload = {
+                    "limit": 1,
+                    "offset": 0,
+                    "external_order_id": claim
+                }
+            claim_info = make_request(endpoint, payload)
+            if 'claims' in claim_info.keys():
+                if len(claim_info['claims']) > 0:
+                    claim_info = claim_info['claims'][0]
 
-        if sdd:
-            claim_info['same_day_data'] = {"delivery_interval": interval}
-            if 'client_requirements' in claim_info.keys():
-                del claim_info['client_requirements']
+            if interval == {} and sdd and 'same_day_data' not in interval.keys():
+                # st.info(f"Getting information about starting point")
+                start_point = claim_info['route_points'][0]['address']['coordinates']
 
-        if 'route_points' in claim_info.keys():
-            for route_point, a in enumerate(claim_info['route_points']):
-                claim_info['route_points'][route_point]['point_id'] = \
-                    claim_info['route_points'][route_point]['id']
+                # st.info(f"Requesting Same-day nearest interval")
+                delivery_methods = make_request("delivery-methods", {"start_point": start_point})
 
-        request_id = token_hex(16)
-        f = lambda j: f"{j['id']}"
-        create_response = make_request(f"claims/create?request_id={request_id}", claim_info)
-        handle_response(create_response, f)
-        if 'id' in create_response.keys():
-            created_claims.append(create_response['id'])
+                if 'available_intervals' in delivery_methods['same_day_delivery'].keys() and len(
+                        delivery_methods['same_day_delivery']['available_intervals']) != 0:
+                    interval = delivery_methods['same_day_delivery']['available_intervals'][0]
+                    st.info(f"Interval: {interval}")
+                else:
+                    st.error(f"No available intervals for this client")
 
-    st.info(f"Approving claims:")
-    if len(created_claims) < 50:
-        time.sleep(3)
+            if sdd:
+                claim_info['same_day_data'] = {"delivery_interval": interval}
+                if 'client_requirements' in claim_info.keys():
+                    del claim_info['client_requirements']
 
-    # if len(created_claims) == 0:
-    #     st.warning(f"Nothing to approve")
-    for claim in created_claims:
-        accept_response = make_request(f"claims/accept?claim_id={claim}", {"version": 1})
-        f = lambda j: f"{j['id']} – accepted"
-        handle_response(accept_response, f)
+            if 'route_points' in claim_info.keys():
+                for route_point, a in enumerate(claim_info['route_points']):
+                    claim_info['route_points'][route_point]['point_id'] = \
+                        claim_info['route_points'][route_point]['id']
 
-    claims = set(created_claims)
+            request_id = token_hex(16)
+            f = lambda j: f"{j['id']}"
+            create_response = make_request(f"claims/create?request_id={request_id}", claim_info)
+            handle_response(create_response, f)
+            if 'id' in create_response.keys():
+                created_claims.append(create_response['id'])
 
-    
-if st.button("Cancel", use_container_width=True):
-    methods = [
-        {
-            "method": "claims/cancel?claim_id={claim_id}",
-            "payload": {"cancel_state": "free", "version": 1}
-        },
-        {
-            "method": "claims/cancel?claim_id={claim_id}",
-            "payload": {"cancel_state": "paid", "version": 1}
-        }
-    ]
-    for claim in claims:
-        if len(claim) != 32:
-            claim_id = find_claim(claim)
-            claim = claim if claim_id == '' else claim_id
-        tries = 0
-        for method in methods:
-            try:
-                action_response = make_request(method['method'].replace("{claim_id}", claim),
-                                               method['payload'],
-                                               claim=claim)
-            except http.client.RemoteDisconnected:
-                continue
-            tries += 1
-            if tries > 1 or 'status' in action_response.keys():
-                tries = 0
-                f = lambda j: f"{j['claim_id']} - {j['status']}"
-                handle_response(action_response, f, check_claim=True)
-            if 'status' in action_response.keys():
-                break
+        st.info(f"Approving claims:")
+        if len(created_claims) < 50:
+            time.sleep(3)
+
+        # if len(created_claims) == 0:
+        #     st.warning(f"Nothing to approve")
+        for claim in created_claims:
+            accept_response = make_request(f"claims/accept?claim_id={claim}", {"version": 1})
+            f = lambda j: f"{j['id']} – accepted"
+            handle_response(accept_response, f)
+
+        claims = set(created_claims)
+
+
+with col_cancel:
+    if st.button("Cancel", use_container_width=True):
+        methods = [
+            {
+                "method": "claims/cancel?claim_id={claim_id}",
+                "payload": {"cancel_state": "free", "version": 1}
+            },
+            {
+                "method": "claims/cancel?claim_id={claim_id}",
+                "payload": {"cancel_state": "paid", "version": 1}
+            }
+        ]
+        for claim in claims:
+            if len(claim) != 32:
+                claim_id = find_claim(claim)
+                claim = claim if claim_id == '' else claim_id
+            tries = 0
+            for method in methods:
+                try:
+                    action_response = make_request(method['method'].replace("{claim_id}", claim),
+                                                   method['payload'],
+                                                   claim=claim)
+                except http.client.RemoteDisconnected:
+                    continue
+                tries += 1
+                if tries > 1 or 'status' in action_response.keys():
+                    tries = 0
+                    f = lambda j: f"{j['claim_id']} - {j['status']}"
+                    handle_response(action_response, f, check_claim=True)
+                if 'status' in action_response.keys():
+                    break
