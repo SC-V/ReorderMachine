@@ -286,7 +286,7 @@ def find(interval="", pickup="", statuses=[], end_date="", date="", time_zone=0,
 
 claims = orders_list
 
-if st.button("Reorder"):
+if st.button("Reorder", type="primary"):
     sdd = "sdd"
     interval = {}
     created_claims = []
@@ -349,3 +349,35 @@ if st.button("Reorder"):
         handle_response(accept_response, f)
 
     claims = set(created_claims)
+
+    
+if st.button("Cancel"):
+    methods = [
+        {
+            "method": "claims/cancel?claim_id={claim_id}",
+            "payload": {"cancel_state": "free", "version": 1}
+        },
+        {
+            "method": "claims/cancel?claim_id={claim_id}",
+            "payload": {"cancel_state": "paid", "version": 1}
+        }
+    ]
+    for claim in claims:
+        if len(claim) != 32:
+            claim_id = find_claim(claim)
+            claim = claim if claim_id == '' else claim_id
+        tries = 0
+        for method in methods:
+            try:
+                action_response = make_request(method['method'].replace("{claim_id}", claim),
+                                               method['payload'],
+                                               claim=claim)
+            except http.client.RemoteDisconnected:
+                continue
+            tries += 1
+            if tries > 1 or 'status' in action_response.keys():
+                tries = 0
+                f = lambda j: f"{j['claim_id']} - {j['status']}"
+                handle_response(action_response, f, check_claim=True)
+            if 'status' in action_response.keys():
+                break
