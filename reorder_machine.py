@@ -287,130 +287,65 @@ def find(interval="", pickup="", statuses=[], end_date="", date="", time_zone=0,
 claims = orders_list
 
 if st.button("Reorder"):
-    command = "reorder"
-    match command:
-        case Actions.ACCEPT:
-            methods = [
-                {
-                    "method": "claims/accept?claim_id={claim_id}",
-                    "payload": {"version": 1}
-                }
-            ]
-            for claim_response in bulk_request(methods, claims):
-                for action_response in claim_response:
-                    f = lambda j: f"{j['claim_id']} - {j['status']}"
-                    handle_response(action_response, f, check_claim=True)
-        case Actions.CLAIMS:
-            found_claims = []
-            for external_order_id in claims:
-                search_response = make_request("claims/search", {
-                    "external_order_id": external_order_id,
-                    "limit": 1,
-                    "offset": 0
-                })
-                if 'claims' not in search_response.keys():
-                    st.error(f"{external_order_id} - Not found")
-                    continue
-                if len(search_response['claims']) == 0:
-                    st.error(f"{external_order_id} - Not found")
-                    continue
-                id = search_response['claims'][0]['id']
-                found_claims.append(id)
-                st.info(id)
+    sdd = "sdd"
+    interval = {}
+    created_claims = []
+    for claim in claims:
+        if len(claim) == 32:
+            endpoint = f"claims/info?claim_id={claim}"
+            payload = {}
+        else:
+            endpoint = f"claims/search"
+            payload = {
+                "limit": 1,
+                "offset": 0,
+                "external_order_id": claim
+            }
+        claim_info = make_request(endpoint, payload)
+        if 'claims' in claim_info.keys():
+            if len(claim_info['claims']) > 0:
+                claim_info = claim_info['claims'][0]
 
-            claims = set(found_claims)
-        case Actions.CANCEL:
-            methods = [
-                {
-                    "method": "claims/cancel?claim_id={claim_id}",
-                    "payload": {"cancel_state": "free", "version": 1}
-                },
-                {
-                    "method": "claims/cancel?claim_id={claim_id}",
-                    "payload": {"cancel_state": "paid", "version": 1}
-                }
-            ]
-            for claim in claims:
-                if len(claim) != 32:
-                    claim_id = find_claim(claim)
-                    claim = claim if claim_id == '' else claim_id
-                tries = 0
-                for method in methods:
-                    try:
-                        action_response = make_request(method['method'].replace("{claim_id}", claim),
-                                                       method['payload'],
-                                                       claim=claim)
-                    except http.client.RemoteDisconnected:
-                        continue
-                    tries += 1
-                    if tries > 1 or 'status' in action_response.keys():
-                        tries = 0
-                        f = lambda j: f"{j['claim_id']} - {j['status']}"
-                        handle_response(action_response, f, check_claim=True)
-                    if 'status' in action_response.keys():
-                        break
-        case Actions.REORDER:
-            sdd = "sdd"
-            interval = {}
-            created_claims = []
-            for claim in claims:
-                if len(claim) == 32:
-                    endpoint = f"claims/info?claim_id={claim}"
-                    payload = {}
-                else:
-                    endpoint = f"claims/search"
-                    payload = {
-                        "limit": 1,
-                        "offset": 0,
-                        "external_order_id": claim
-                    }
-                claim_info = make_request(endpoint, payload)
-                if 'claims' in claim_info.keys():
-                    if len(claim_info['claims']) > 0:
-                        claim_info = claim_info['claims'][0]
+        if interval == {} and sdd and 'same_day_data' not in interval.keys():
+            # st.info(f"Getting information about starting point")
+            start_point = claim_info['route_points'][0]['address']['coordinates']
 
-                if interval == {} and sdd and 'same_day_data' not in interval.keys():
-                    # st.info(f"Getting information about starting point")
-                    start_point = claim_info['route_points'][0]['address']['coordinates']
+            # st.info(f"Requesting Same-day nearest interval")
+            delivery_methods = make_request("delivery-methods", {"start_point": start_point})
 
-                    # st.info(f"Requesting Same-day nearest interval")
-                    delivery_methods = make_request("delivery-methods", {"start_point": start_point})
+            if 'available_intervals' in delivery_methods['same_day_delivery'].keys() and len(
+                    delivery_methods['same_day_delivery']['available_intervals']) != 0:
+                interval = delivery_methods['same_day_delivery']['available_intervals'][0]
+                st.info(f"Interval: {interval}")
+            else:
+                st.error(f"No available intervals for this client")
 
-                    if 'available_intervals' in delivery_methods['same_day_delivery'].keys() and len(
-                            delivery_methods['same_day_delivery']['available_intervals']) != 0:
-                        interval = delivery_methods['same_day_delivery']['available_intervals'][0]
-                        st.info(f"Interval: {interval}")
-                    else:
-                        st.error(f"No available intervals for this client")
+        if sdd:
+            claim_info['same_day_data'] = {"delivery_interval": interval}
+            if 'client_requirements' in claim_info.keys():
+                del claim_info['client_requirements']
 
-                if sdd:
-                    claim_info['same_day_data'] = {"delivery_interval": interval}
-                    if 'client_requirements' in claim_info.keys():
-                        del claim_info['client_requirements']
+        if 'route_points' in claim_info.keys():
+            for route_point, a in enumerate(claim_info['route_points']):
+                claim_info['route_points'][route_point]['point_id'] = \
+                    claim_info['route_points'][route_point]['id']
 
-                if 'route_points' in claim_info.keys():
-                    for route_point, a in enumerate(claim_info['route_points']):
-                        claim_info['route_points'][route_point]['point_id'] = \
-                            claim_info['route_points'][route_point]['id']
+        request_id = token_hex(16)
+        f = lambda j: f"{j['id']}"
+        create_response = make_request(f"claims/create?request_id={request_id}", claim_info)
+        handle_response(create_response, f)
+        if 'id' in create_response.keys():
+            created_claims.append(create_response['id'])
 
-                request_id = token_hex(16)
-                f = lambda j: f"{j['id']}"
-                create_response = make_request(f"claims/create?request_id={request_id}", claim_info)
-                handle_response(create_response, f)
-                if 'id' in create_response.keys():
-                    created_claims.append(create_response['id'])
+    st.info(f"Approving claims:")
+    if len(created_claims) < 50:
+        time.sleep(3)
 
-            st.info(f"Approving claims:")
-            if len(created_claims) < 50:
-                time.sleep(3)
+    # if len(created_claims) == 0:
+    #     st.warning(f"Nothing to approve")
+    for claim in created_claims:
+        accept_response = make_request(f"claims/accept?claim_id={claim}", {"version": 1})
+        f = lambda j: f"{j['id']} – accepted"
+        handle_response(accept_response, f)
 
-            # if len(created_claims) == 0:
-            #     st.warning(f"Nothing to approve")
-            for claim in created_claims:
-                accept_response = make_request(f"claims/accept?claim_id={claim}", {"version": 1})
-                f = lambda j: f"{j['id']} – accepted"
-                handle_response(accept_response, f)
-
-            claims = set(created_claims)
-        case _:
-            print("N/A")
+    claims = set(created_claims)
