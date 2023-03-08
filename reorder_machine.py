@@ -355,7 +355,7 @@ with col_reorder:
 
 
 with col_cancel:
-    if st.button("Cancel", use_container_width=True):
+    if st.button("Cancel old orders", type="primary", use_container_width=True):
         methods = [
             {
                 "method": "claims/cancel?claim_id={claim_id}",
