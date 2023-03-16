@@ -12,7 +12,7 @@ from colorama import init, Fore, Style
 from tenacity import retry, retry_if_exception_type
 
 addresses = {
-    "test_location": "Moscow, Red Square, 1"
+    "test_location": "Moscow, Red Square 1"
 }
 
 
