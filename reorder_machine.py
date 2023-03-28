@@ -133,7 +133,7 @@ else:
 init(autoreset=True)
 
 st.markdown(f"# Reorder machine")
-st.error("First reorder claims, then click cancel to cancel old ones!")
+st.error("First reorder claims, then click cancel to cancel old ones! For Huevos, Pets Table, Inkovsky, Baby Creisy, Vigilancia – change SDD config first to add a new interval!")
 client_name = st.selectbox("Select client", ["Petco", "Sanborns", "El Magico", "Huevos", "Pets Table", "Inkovsky", "Baby Creisy", "Vigilancia Network"], index=0)
 orders_list = st.text_area("Claims to reorder", height=200, help="Copy and paste from the route reports app")
 orders_list = orders_list.split()
