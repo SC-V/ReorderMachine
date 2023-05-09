@@ -289,8 +289,7 @@ claims = orders_list
 col_reorder, col_cancel = st.columns(2)
 
 with col_reorder:
-    if st.button("Reorder", type="primary", use_container_width=True, disabled=True if client_name in ["Mr Mascotas", "Senor Grischenko
-"] else False):
+    if st.button("Reorder", type="primary", use_container_width=True, disabled=True if client_name in ["Mr Mascotas", "Senor Grischenko"] else False):
         sdd = "sdd"
         interval = {}
         created_claims = []
